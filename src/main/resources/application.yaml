@@ -1,0 +1,22 @@
+spring:
+  datasource:
+    username: root
+    password: mysql888
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    #    url: jdbc:mysql://49.234.181.190:3306/fuchuang
+    url: jdbc:mysql://localhost:3306/jpa
+    backuppath: src/main/resources/static/
+server:
+    port: 8088
+dbswitch:
+  configuration:
+    #    drivers-base-path: ${APP_DRIVERS_PATH}
+    drivers-base-path: D:\code\workbench\dbswitch\dbswitch\target\dbswitch-release-1.9.7.tar\dbswitch-release-1.9.7\dbswitch-release-1.9.7\drivers
+mybatis:
+  configuration:
+    lazy-loading-enabled: true
+    aggressive-lazy-loading: false
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+#mybatis-plus:
+#  mapper-locations: classpath*:mapper/**/*Mapper.xml
