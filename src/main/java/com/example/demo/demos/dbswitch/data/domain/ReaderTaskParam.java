@@ -7,10 +7,11 @@
 // Date : 2020/1/2
 // Location: beijing , china
 /////////////////////////////////////////////////////////////
-package com.example.demo.demos.dbswitch.domain;
+package com.example.demo.demos.dbswitch.data.domain;
 
 import com.example.demo.demos.dbswitch.common.entity.CloseableDataSource;
-
+import com.example.demo.demos.dbswitch.core.exchange.MemChannel;
+import com.example.demo.demos.dbswitch.core.task.TaskParam;
 import com.example.demo.demos.dbswitch.data.config.DbswichPropertiesConfiguration;
 import com.example.demo.demos.dbswitch.schema.TableDescription;
 import lombok.AllArgsConstructor;
@@ -32,10 +33,11 @@ import java.util.concurrent.CountDownLatch;
 @AllArgsConstructor
 public class ReaderTaskParam implements TaskParam {
 
-
+  private MemChannel memChannel;
   private TableDescription tableDescription;
   private DbswichPropertiesConfiguration configuration;
   private CloseableDataSource sourceDataSource;
   private CloseableDataSource targetDataSource;
   private Set<String> targetExistTables;
+  private CountDownLatch countDownLatch;
 }

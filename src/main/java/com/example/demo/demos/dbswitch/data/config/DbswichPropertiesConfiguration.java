@@ -33,7 +33,7 @@ public class DbswichPropertiesConfiguration {
 
   private SourceDataSourceProperties source = new SourceDataSourceProperties();
 
-  private TargetDataSourceProperties target = new TargetDataSourceProperties();
+  private SourceDataSourceProperties target = new SourceDataSourceProperties();
 
   private GlobalParamConfigProperties config = new GlobalParamConfigProperties();
 }
