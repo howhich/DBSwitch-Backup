@@ -24,10 +24,12 @@ import com.example.demo.demos.dbswitch.core.task.TaskParam;
 import com.example.demo.demos.dbswitch.data.config.DbswichPropertiesConfiguration;
 import com.example.demo.demos.dbswitch.data.domain.ReaderTaskParam;
 import com.example.demo.demos.dbswitch.data.entity.SourceDataSourceProperties;
+import com.example.demo.demos.dbswitch.data.entity.TargetDataSourceProperties;
 import com.example.demo.demos.dbswitch.data.util.JsonUtils;
 import com.example.demo.demos.dbswitch.schema.TableDescription;
 import com.example.demo.demos.entity.DatabaseConnectionEntity;
 import com.example.demo.demos.handler.BackupHandler;
+import com.example.demo.demos.handler.ReaderTaskThread;
 import com.example.demo.demos.handler.WriteHandler;
 import com.example.demo.demos.mapper.DbConnectionMapper;
 import com.example.demo.demos.response.ResultCode;
@@ -130,39 +132,9 @@ public class DbConnectionServiceImpl extends ServiceImpl<DbConnectionMapper, Dat
         BackupHandler backupHandler = new BackupHandler(commonDataSource,
                 entity.getDatabaseName(), "user", entity.getType());
         backupHandler.backUp();
-
-
-        processBackUp(backupHandler);
+//        ReaderTaskThread readerTaskThread = new ReaderTaskThread();
     }
 
-    private void processBackUp(BackupHandler handler) {
-        MemChannel memChannel= MemChannel.createNewChannel(5000);
-        ReaderTaskParam readerTaskParam = new ReaderTaskParam();
-//        readerTaskParam.getConfiguration()
-        readerTaskParam.setMemChannel(memChannel);
-        readerTaskParam.setSourceDataSource(handler.getSourceDataSource());
-        readerTaskParam.setTargetDataSource(handler.getSourceDataSource());
-
-        DbswichPropertiesConfiguration properties = new DbswichPropertiesConfiguration();
-        SourceDataSourceProperties sourceDataSourceProperties= new SourceDataSourceProperties();
-        sourceDataSourceProperties.setUsername(handler.getSourceDataSource().getUserName());
-        sourceDataSourceProperties.setPassword(handler.getSourceDataSource().getPassword());
-        sourceDataSourceProperties.setDriverClassName(handler.getSourceDataSource().getDriverClass());
-        sourceDataSourceProperties.setUrl(handler.getSourceDataSource().getJdbcUrl());
-        sourceDataSourceProperties.setDriverPath(handler.getSourceDataSource().getDriverClass());
-        properties.setSource(sourceDataSourceProperties);
-        properties.setTarget(sourceDataSourceProperties);
-        List<TableDescription> tableDescriptions = splitReaderTask(properties,handler.getSourceDataSource());
-        readerTaskParam.setConfiguration(properties);
-        readerTaskParam.setCountDownLatch(new CountDownLatch(1));
-
-        tableDescriptions.forEach(tableDescription -> {
-            readerTaskParam.setTableDescription(tableDescription);
-            WriteHandler writeHandler = new WriteHandler(readerTaskParam);
-            writeHandler.doFullCoverSynchronize(handler.getTargetWriter(),
-                    handler.getTargetTableManager(), handler.getSourceQuerier(), handler.getTransformProvider());
-        });
-        }
 
 
 

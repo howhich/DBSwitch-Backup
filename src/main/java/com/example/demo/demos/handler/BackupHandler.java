@@ -1,9 +1,18 @@
 package com.example.demo.demos.handler;
 
+import cn.hutool.core.stream.StreamUtil;
+import cn.hutool.core.text.StrPool;
+import cn.hutool.core.util.StrUtil;
+import cn.hutool.db.sql.StatementWrapper;
 import com.example.demo.demos.dbswitch.common.entity.CloseableDataSource;
 import com.example.demo.demos.dbswitch.common.type.ProductTypeEnum;
 import com.example.demo.demos.dbswitch.common.util.ExamineUtils;
+import com.example.demo.demos.dbswitch.core.exchange.MemChannel;
 import com.example.demo.demos.dbswitch.data.config.DbswichPropertiesConfiguration;
+import com.example.demo.demos.dbswitch.data.domain.ReaderTaskParam;
+import com.example.demo.demos.dbswitch.data.entity.SourceDataSourceProperties;
+import com.example.demo.demos.dbswitch.data.entity.TargetDataSourceProperties;
+import com.example.demo.demos.dbswitch.data.util.JsonUtils;
 import com.example.demo.demos.dbswitch.provider.ProductFactoryProvider;
 import com.example.demo.demos.dbswitch.provider.ProductProviderFactory;
 import com.example.demo.demos.dbswitch.provider.manage.TableManageProvider;
@@ -13,18 +22,19 @@ import com.example.demo.demos.dbswitch.provider.sync.TableDataSynchronizeProvide
 import com.example.demo.demos.dbswitch.provider.transform.RecordTransformProvider;
 import com.example.demo.demos.dbswitch.provider.write.TableDataWriteProvider;
 import com.example.demo.demos.dbswitch.schema.ColumnDescription;
+import com.example.demo.demos.dbswitch.schema.TableDescription;
 import com.example.demo.demos.service.DefaultMetadataService;
 import com.example.demo.demos.service.MetadataService;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.BeanUtils;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.util.StringUtils;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
+import java.sql.*;
 import java.util.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -120,8 +130,37 @@ public class BackupHandler {
             log.info("Execute SQL: \n{}", sql);
             targetJdbcTemplate.execute(sql);
         }
+        List<Map<String, Object>> maps = targetJdbcTemplate.queryForList("SELECT * FROM " + sourceTableName);
+        StringBuilder InsertSQL = new StringBuilder();
+        InsertSQL.append("INSERT INTO " + sourceTableName + "1" + "(" );
+        for (int i = 0; i < targetColumnDescriptions.size(); i++){
+            InsertSQL.append(targetColumnDescriptions.get(i).getFieldName());
+            InsertSQL.append(i==targetColumnDescriptions.size()-1?") ":",");
+        }
+        InsertSQL.append("VALUES");
 
+        for (int i = 0; i < maps.size(); i++){
+            InsertSQL.append("(");
+            Map<String, Object> stringObjectMap = maps.get(i);
+            int count = 0;
+            for (Map.Entry<String,Object> entry : stringObjectMap.entrySet()){
+                if (entry.getValue() instanceof String){
+                    InsertSQL.append("'" + entry.getValue() + "'" );
+                }else {
+                    InsertSQL.append(entry.getValue() );
+                }
 
+                if(count!=targetColumnDescriptions.size()-1){
+                    InsertSQL.append(",");
+                }
+                count++;
+            }
+
+            InsertSQL.append(")");
+            InsertSQL.append(i==maps.size()-1?";":",");
+        }
+        log.info("Execute SQL: \n{}", InsertSQL);
+        targetJdbcTemplate.execute(InsertSQL.toString());
 
 
     }
@@ -161,4 +200,5 @@ public class BackupHandler {
         }
         return ret;
     }
+
 }

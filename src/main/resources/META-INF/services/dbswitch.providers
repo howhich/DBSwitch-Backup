@@ -1,1 +1,2 @@
 com.example.demo.demos.product.mysql.MysqlFactoryProvider
+com.example.demo.demos.product.sqlite.SqliteFactoryProvider

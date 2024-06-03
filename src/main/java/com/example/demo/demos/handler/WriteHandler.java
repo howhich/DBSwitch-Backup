@@ -26,6 +26,7 @@ import com.example.demo.demos.service.DefaultMetadataService;
 import com.example.demo.demos.service.MetadataService;
 import com.google.common.collect.Lists;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.BeanUtils;
 import org.springframework.util.StringUtils;
 import com.example.demo.demos.dbswitch.common.util.JdbcTypesUtils;
 
@@ -196,6 +197,41 @@ public class WriteHandler extends TaskProcessor<ReaderTaskResult> {
         }
 
     }
+
+    private void processBackUp(BackupHandler handler) {
+        MemChannel memChannel= MemChannel.createNewChannel(5000);
+        ReaderTaskParam readerTaskParam = new ReaderTaskParam();
+//        readerTaskParam.getConfiguration()
+        readerTaskParam.setMemChannel(memChannel);
+        readerTaskParam.setSourceDataSource(handler.getSourceDataSource());
+        readerTaskParam.setTargetDataSource(handler.getSourceDataSource());
+
+        DbswichPropertiesConfiguration properties = new DbswichPropertiesConfiguration();
+        SourceDataSourceProperties sourceDataSourceProperties= new SourceDataSourceProperties();
+        sourceDataSourceProperties.setUsername(handler.getSourceDataSource().getUserName());
+        sourceDataSourceProperties.setPassword(handler.getSourceDataSource().getPassword());
+        sourceDataSourceProperties.setDriverClassName(handler.getSourceDataSource().getDriverClass());
+        sourceDataSourceProperties.setUrl(handler.getSourceDataSource().getJdbcUrl());
+        sourceDataSourceProperties.setDriverPath(handler.getSourceDataSource().getDriverClass());
+
+        TargetDataSourceProperties targetDataSourceProperties = new TargetDataSourceProperties();
+        BeanUtils.copyProperties(sourceDataSourceProperties,targetDataSourceProperties);
+
+        properties.setSource(sourceDataSourceProperties);
+        properties.setTarget(targetDataSourceProperties);
+        List<TableDescription> tableDescriptions = splitReaderTask();
+        readerTaskParam.setConfiguration(properties);
+        readerTaskParam.setCountDownLatch(new CountDownLatch(1));
+
+        tableDescriptions.forEach(tableDescription -> {
+            readerTaskParam.setTableDescription(tableDescription);
+            WriteHandler writeHandler = new WriteHandler(readerTaskParam);
+            writeHandler.doFullCoverSynchronize(handler.getTargetWriter(),
+                    handler.getTargetTableManager(), handler.getSourceQuerier(), handler.getTransformProvider());
+        });
+
+    }
+
 
     @Override
     protected ReaderTaskResult doProcess() {
