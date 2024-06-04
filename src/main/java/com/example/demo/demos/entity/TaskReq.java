@@ -4,7 +4,8 @@ import lombok.Data;
 
 @Data
 public class TaskReq {
-    private Long id;
+    private Long dataSourceId;
     private String taskName;
     private String cron;
+    private String taskDesc;
 }

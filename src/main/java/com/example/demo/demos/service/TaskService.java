@@ -9,7 +9,7 @@ public interface TaskService extends IService<TaskCron> {
 
     List<TaskCron> getTasks();
 
-    String addTask(Long id);
+    String addTask(TaskCron taskCron);
 
     String stopTask(Long id);
 

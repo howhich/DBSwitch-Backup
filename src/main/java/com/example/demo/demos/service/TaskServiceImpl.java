@@ -1,48 +1,22 @@
 package com.example.demo.demos.service;
 
 
-import cn.hutool.core.stream.StreamUtil;
-import cn.hutool.core.text.StrPool;
-import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.example.demo.demos.Exception.DbswitchException;
-import com.example.demo.demos.dbswitch.common.entity.CloseableDataSource;
-import com.example.demo.demos.dbswitch.common.entity.DbConnectionCreateRequest;
-import com.example.demo.demos.dbswitch.common.type.ProductTypeEnum;
-import com.example.demo.demos.dbswitch.common.util.DSTestUtils;
-import com.example.demo.demos.dbswitch.common.util.DSUtils;
-import com.example.demo.demos.dbswitch.common.util.JdbcUrlUtils;
-import com.example.demo.demos.dbswitch.data.config.DbswichPropertiesConfiguration;
-import com.example.demo.demos.dbswitch.data.entity.SourceDataSourceProperties;
-import com.example.demo.demos.dbswitch.data.util.JsonUtils;
-import com.example.demo.demos.dbswitch.schema.TableDescription;
-import com.example.demo.demos.entity.DatabaseConnectionEntity;
+import com.example.demo.demos.common.TaskStatus;
 import com.example.demo.demos.entity.TaskCron;
-import com.example.demo.demos.handler.BackupHandler;
-import com.example.demo.demos.mapper.DbConnectionMapper;
 import com.example.demo.demos.mapper.TaskMapper;
-import com.example.demo.demos.response.ResultCode;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
 //import org.quartz.*;
 //import org.quartz.impl.StdScheduler;
 //import org.quartz.impl.StdSchedulerFactory;
 import org.quartz.*;
 import org.quartz.impl.StdSchedulerFactory;
-import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.scheduling.config.CronTask;
 import org.springframework.stereotype.Service;
 
-import javax.annotation.Resource;
-import java.io.File;
-import java.sql.SQLException;
+import javax.annotation.PostConstruct;
 import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 //import static com.example.demo.demos.dbswitch.common.util.DSUtils.createURLClassLoader;
 
@@ -67,43 +41,58 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, TaskCron> implement
         List<TaskCron> taskCrons = taskMapper.selectList(new LambdaQueryWrapper<>());
         return taskCrons;
     }
+    @PostConstruct
+    public void init() throws SchedulerException {
+        scheduler = StdSchedulerFactory.getDefaultScheduler();
+        List<TaskCron> taskCrons = new ArrayList<>();
+        taskCrons = taskMapper.selectList(new LambdaQueryWrapper<>());
+        taskCrons.forEach(taskCron -> {
+            if (taskCron.getTaskStatus().equals(TaskStatus.RUNNING.getStatus())) {
+                try {
+                    Trigger trigger = TriggerBuilder.newTrigger()
+                            .withIdentity(taskCron.getTaskName(),"group1")
+                            .startNow()
+                            .withSchedule(CronScheduleBuilder.cronSchedule(taskCron.getCron()))
+                            .build();
 
+                    JobDetail job = JobBuilder.newJob(HelloJob.class)
+                           .withIdentity(taskCron.getTaskName() ,"group1")
+                            .usingJobData("datasourceId", taskCron.getDatasourceId())
+                            .build();
+                    scheduler.scheduleJob(job, trigger);
+                    scheduler.start();
+                    log.info("job: {} has been initialized successfully", taskCron.getTaskName());
+                       }
+                catch (Exception e){
+                    e.printStackTrace();
+                }
+            }
+        });
+
+    }
     @Override
-    public String addTask(Long id) {
-        TaskCron taskCron = taskMapper.selectOne(new LambdaQueryWrapper<TaskCron>().eq(TaskCron::getId, id));
+    public String addTask(TaskCron taskCron) {
+        taskCron.setTaskStatus(TaskStatus.INIT.getStatus());
+        int i = taskMapper.insert(taskCron);
+
         String cron = taskCron.getCron();
         try {
-            scheduler = StdSchedulerFactory.getDefaultScheduler();
-            Trigger trigger = TriggerBuilder.newTrigger().withIdentity("trigger1","group1")
+
+            Trigger trigger = TriggerBuilder.newTrigger().withIdentity(taskCron.getTaskName(),"group1")
                     .startNow()
-//                    .withSchedule(SimpleScheduleBuilder.simpleSchedule()
-//                            .withIntervalInSeconds(1)
-//                            .repeatForever())
                     .withSchedule(CronScheduleBuilder.cronSchedule(cron))
                     .build();
-//            Trigger trigger1 = TriggerBuilder.newTrigger().withIdentity("trigger2","group2")
-//                    .startNow()
-//                    .withSchedule(SimpleScheduleBuilder.simpleSchedule()
-//                            .withIntervalInSeconds(1)
-//                            .repeatForever())
-//                    .withSchedule(CronScheduleBuilder.cronSchedule("0/1 * * * * ?"))
-//                    .build();
-            JobDetail job = JobBuilder.newJob(HelloJob.class)
-                    .withIdentity("job1","group1")
-                    .usingJobData("name","quartz")
+
+            JobDetail job = JobBuilder.newJob(DbConnectionServiceImpl.class)
+                    .withIdentity(taskCron.getTaskName(),"group1")
+                    .usingJobData("datasourceId", taskCron.getDatasourceId())
                     .build();
-//            Set<Trigger> triggers = new HashSet<>();
-//            triggers.add(trigger);
-//            triggers.add(trigger1);
-//            Map<JobDetail, Set<Trigger>> map = new HashMap<>();
-//            map.put(job,triggers);
-//            scheduler.scheduleJobs(Collections.unmodifiableMap(map), false);
+
             scheduler.scheduleJob(job, trigger);
-            //启动任务调度
-            scheduler.start();
-            log.info("task: {} has been started", taskCron.getTaskName());
+
+            log.info("task: {} has been init", taskCron.getTaskName());
         } catch (SchedulerException e) {
-            throw new RuntimeException(e);
+            return e.toString();
         }
         return null;
     }
@@ -113,8 +102,9 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, TaskCron> implement
         TaskCron taskCron = taskMapper.selectOne(new LambdaQueryWrapper<TaskCron>().eq(TaskCron::getId, id));
         String taskName = taskCron.getTaskName();
         try{
-            scheduler = StdSchedulerFactory.getDefaultScheduler();
-            scheduler.pauseTrigger(TriggerKey.triggerKey("trigger1","group1"));
+            scheduler.pauseTrigger(TriggerKey.triggerKey(taskName ,"group1"));
+            taskCron.setTaskStatus(TaskStatus.STOP.getStatus());
+            taskMapper.updateById(taskCron);
             log.info("task: {} has been stopped",taskName);
         } catch (SchedulerException e) {
             throw new RuntimeException(e);
@@ -125,9 +115,38 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, TaskCron> implement
     @Override
     public String startTask(Long id) {
         try {
+            TaskCron taskCron = taskMapper.selectOne(new LambdaQueryWrapper<TaskCron>()
+                    .eq(TaskCron::getId, id));
 
-//            Trigger trigger = scheduler.getTrigger(TriggerKey.triggerKey("trigger1", "group1"));
-            scheduler.resumeTrigger(TriggerKey.triggerKey("trigger1", "group1"));
+            Trigger trigger = TriggerBuilder.newTrigger()
+                    .withIdentity(taskCron.getTaskName(),"group1")
+                    .startNow()
+                    .withSchedule(CronScheduleBuilder.cronSchedule(taskCron.getCron()))
+                    .build();
+
+            JobDetail job = JobBuilder.newJob(HelloJob.class)
+                    .withIdentity(taskCron.getTaskName() ,"group1")
+                    .usingJobData("datasourceId", taskCron.getDatasourceId())
+                    .build();
+
+            if (taskCron.getTaskStatus().equals(TaskStatus.STOP.getStatus())){
+                // 暂停分为初始化就暂停 和 后续暂停 初始化暂停时候 jobDetail不存在
+                if (!scheduler.checkExists(JobKey.jobKey(taskCron.getTaskName() ,"group1"))){
+                    scheduler.scheduleJob(job, trigger);
+                    scheduler.start();
+                }else {
+                // 后续暂停 jobDetail是存在的 所以直接恢复即可
+                    scheduler.resumeJob(JobKey.jobKey(taskCron.getTaskName() ,"group1"));
+                }
+                // 初始化的同样需要启动
+            }else if (taskCron.getTaskStatus().equals(TaskStatus.INIT.getStatus())){
+                scheduler.scheduleJob(job, trigger);
+                scheduler.start();
+            }
+            taskCron = taskMapper.selectOne(new LambdaQueryWrapper<TaskCron>()
+                    .eq(TaskCron::getId, id));
+            taskCron.setTaskStatus(TaskStatus.RUNNING.getStatus());
+            taskMapper.updateById(taskCron);
         } catch (SchedulerException e) {
             throw new RuntimeException(e);
         }
@@ -138,20 +157,21 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, TaskCron> implement
     public String updateTask(TaskCron taskCron) {
         Long id = taskCron.getId();
         try{
-            Trigger.TriggerState triggerState = scheduler.getTriggerState(TriggerKey.triggerKey("trigger1", "group1"));
-
-            if(triggerState.equals(Trigger.TriggerState.NORMAL)){
-                scheduler.pauseTrigger(TriggerKey.triggerKey("trigger1", "group1"));
-                return "先停止";
+            TaskCron originalTask = taskMapper.
+                    selectOne(new LambdaQueryWrapper<TaskCron>().eq(TaskCron::getId, id));
+            if (originalTask.getTaskStatus().equals(TaskStatus.RUNNING.getStatus())){
+                return "任务正在运行，无法修改";
             }
-
-
-            scheduler.pauseTrigger(TriggerKey.triggerKey("trigger1", "group1"));
+//            if(triggerState.equals(Trigger.TriggerState.NORMAL)){
+//                scheduler.pauseTrigger(TriggerKey.triggerKey("trigger1", "group1"));
+//                return "先停止";
+//            }
+//            scheduler.pauseTrigger(TriggerKey.triggerKey("trigger1", "group1"));
             taskMapper.update(taskCron, new LambdaQueryWrapper<TaskCron>()
                     .eq(TaskCron::getId, id));
-            scheduler.resumeTrigger(TriggerKey.triggerKey("trigger1", "group1"));
-        } catch (SchedulerException e) {
-            throw new RuntimeException(e);
+//            scheduler.resumeTrigger(TriggerKey.triggerKey("trigger1", "group1"));
+        }catch (Exception e){
+
         }
         return null;
     }

@@ -4,6 +4,7 @@ package com.example.demo.demos.service;
 import cn.hutool.core.stream.StreamUtil;
 import cn.hutool.core.text.StrPool;
 import cn.hutool.core.util.StrUtil;
+import cn.hutool.extra.spring.SpringUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 //import com.example.demo.demos.dbswitch.common.entity.CloseableDataSource;
@@ -35,7 +36,12 @@ import com.example.demo.demos.mapper.DbConnectionMapper;
 import com.example.demo.demos.response.ResultCode;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.quartz.Job;
+import org.quartz.JobDetail;
+import org.quartz.JobExecutionContext;
+import org.quartz.JobExecutionException;
 import org.springframework.beans.BeanUtils;
+import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
@@ -55,7 +61,7 @@ import java.util.stream.Collectors;
 
 @Service
 @Slf4j
-public class DbConnectionServiceImpl extends ServiceImpl<DbConnectionMapper, DatabaseConnectionEntity> implements DbConnectionService  {
+public class DbConnectionServiceImpl extends ServiceImpl<DbConnectionMapper, DatabaseConnectionEntity> implements DbConnectionService, Job {
     @Resource
     private DbConnectionMapper dbConnectionMapper;
     @Resource
@@ -125,14 +131,15 @@ public class DbConnectionServiceImpl extends ServiceImpl<DbConnectionMapper, Dat
 
     @Override
     public void backUp(Long id) {
+        DbConnectionMapper dbConnectionMapper = SpringUtil.getApplicationContext().getBean(DbConnectionMapper.class);
         DatabaseConnectionEntity entity = dbConnectionMapper.selectById(id);
+        DriverLoadService driverLoadService = SpringUtil.getApplicationContext().getBean(DriverLoadService.class);
         String path = driverLoadService.getVersionDriverFile(entity.getType(), entity.getVersion()).getAbsolutePath();
         CloseableDataSource commonDataSource = DSUtils.createCommonDataSource(entity.getUrl()
                 , entity.getDriver(), path, entity.getUsername(), entity.getPassword());
         BackupHandler backupHandler = new BackupHandler(commonDataSource,
                 entity.getDatabaseName(), "user", entity.getType());
         backupHandler.backUp();
-//        ReaderTaskThread readerTaskThread = new ReaderTaskThread();
     }
 
 
@@ -226,5 +233,12 @@ public class DbConnectionServiceImpl extends ServiceImpl<DbConnectionMapper, Dat
             }
         }
         return tableDescriptions;
+    }
+
+    @Override
+    public void execute(JobExecutionContext jobExecutionContext) throws JobExecutionException {
+        JobDetail jobDetail = jobExecutionContext.getJobDetail();
+        Long id = jobDetail.getJobDataMap().getLong("datasourceId");
+        backUp(id);
     }
 }

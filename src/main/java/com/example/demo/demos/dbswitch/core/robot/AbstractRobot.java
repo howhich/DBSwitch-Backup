@@ -15,7 +15,6 @@ import com.example.demo.demos.dbswitch.core.task.TaskResult;
 import java.util.Optional;
 
 public abstract class AbstractRobot<R extends TaskResult> implements Robot {
-
   private MemChannel channel;
 
   public void setChannel(MemChannel channel) {

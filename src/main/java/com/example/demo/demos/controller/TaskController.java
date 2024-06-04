@@ -1,6 +1,7 @@
 package com.example.demo.demos.controller;
 
 import com.example.demo.demos.entity.TaskCron;
+import com.example.demo.demos.entity.TaskReq;
 import com.example.demo.demos.service.TaskService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -16,9 +17,9 @@ public class TaskController {
     public List<TaskCron> list() {
         return taskService.getTasks();
     }
-    @GetMapping("/add/{id}")
-    public String add(@PathVariable("id") Long id) {
-        return taskService.addTask(id);
+    @PostMapping("/add")
+    public String add(@RequestBody TaskCron taskCron) {
+        return taskService.addTask(taskCron);
     }
     @GetMapping("/stop/{id}")
     public String stop(@PathVariable("id") Long id) {
