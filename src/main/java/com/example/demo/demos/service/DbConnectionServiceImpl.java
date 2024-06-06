@@ -20,18 +20,13 @@ import com.example.demo.demos.dbswitch.common.type.ProductTypeEnum;
 import com.example.demo.demos.dbswitch.common.util.DSTestUtils;
 import com.example.demo.demos.dbswitch.common.util.DSUtils;
 import com.example.demo.demos.dbswitch.common.util.JdbcUrlUtils;
-import com.example.demo.demos.dbswitch.core.exchange.MemChannel;
-import com.example.demo.demos.dbswitch.core.task.TaskParam;
 import com.example.demo.demos.dbswitch.data.config.DbswichPropertiesConfiguration;
-import com.example.demo.demos.dbswitch.data.domain.ReaderTaskParam;
 import com.example.demo.demos.dbswitch.data.entity.SourceDataSourceProperties;
-import com.example.demo.demos.dbswitch.data.entity.TargetDataSourceProperties;
 import com.example.demo.demos.dbswitch.data.util.JsonUtils;
 import com.example.demo.demos.dbswitch.schema.TableDescription;
+import com.example.demo.demos.entity.BackupReqVO;
 import com.example.demo.demos.entity.DatabaseConnectionEntity;
 import com.example.demo.demos.handler.BackupHandler;
-import com.example.demo.demos.handler.ReaderTaskThread;
-import com.example.demo.demos.handler.WriteHandler;
 import com.example.demo.demos.mapper.DbConnectionMapper;
 import com.example.demo.demos.response.ResultCode;
 import lombok.extern.slf4j.Slf4j;
@@ -41,7 +36,6 @@ import org.quartz.JobDetail;
 import org.quartz.JobExecutionContext;
 import org.quartz.JobExecutionException;
 import org.springframework.beans.BeanUtils;
-import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
@@ -50,8 +44,6 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
-import java.util.concurrent.CountDownLatch;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -130,19 +122,32 @@ public class DbConnectionServiceImpl extends ServiceImpl<DbConnectionMapper, Dat
     }
 
     @Override
-    public void backUp(Long id) {
+    public void backUp(BackupReqVO reqVO) {
         DbConnectionMapper dbConnectionMapper = SpringUtil.getApplicationContext().getBean(DbConnectionMapper.class);
+        DatabaseConnectionEntity entity = dbConnectionMapper.selectById(reqVO.getId());
+        DriverLoadService driverLoadService = SpringUtil.getApplicationContext().getBean(DriverLoadService.class);
+
+        String path = driverLoadService.getVersionDriverFile(entity.getType(), entity.getVersion()).getAbsolutePath();
+        CloseableDataSource commonDataSource = DSUtils.createCommonDataSource(entity.getUrl()
+                , entity.getDriver(), path, entity.getUsername(), entity.getPassword());
+        BackupHandler backupHandler = new BackupHandler(commonDataSource,
+                 reqVO.getSchema(), entity.getType());
+        backupHandler.backUp();
+        log.info("已经执行完备份");
+    }
+
+    @Override
+    public List<String> getSchemas(Long id) {
         DatabaseConnectionEntity entity = dbConnectionMapper.selectById(id);
         DriverLoadService driverLoadService = SpringUtil.getApplicationContext().getBean(DriverLoadService.class);
         String path = driverLoadService.getVersionDriverFile(entity.getType(), entity.getVersion()).getAbsolutePath();
         CloseableDataSource commonDataSource = DSUtils.createCommonDataSource(entity.getUrl()
                 , entity.getDriver(), path, entity.getUsername(), entity.getPassword());
         BackupHandler backupHandler = new BackupHandler(commonDataSource,
-                entity.getDatabaseName(), "user", entity.getType());
-        backupHandler.backUp();
+                entity.getDatabaseName(), entity.getType());
+        List<String> schemas = backupHandler.getAllSchemas();
+        return schemas;
     }
-
-
 
 
     private void validJdbcUrlFormat(DatabaseConnectionEntity conn) {
@@ -239,6 +244,10 @@ public class DbConnectionServiceImpl extends ServiceImpl<DbConnectionMapper, Dat
     public void execute(JobExecutionContext jobExecutionContext) throws JobExecutionException {
         JobDetail jobDetail = jobExecutionContext.getJobDetail();
         Long id = jobDetail.getJobDataMap().getLong("datasourceId");
-        backUp(id);
+        String schema = jobDetail.getJobDataMap().getString("schema");
+        BackupReqVO reqVO = new BackupReqVO();
+        reqVO.setId(id);
+        reqVO.setSchema(schema);
+        backUp(reqVO);
     }
 }

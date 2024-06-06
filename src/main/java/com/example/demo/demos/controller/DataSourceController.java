@@ -1,6 +1,7 @@
 package com.example.demo.demos.controller;
 
 import com.example.demo.demos.dbswitch.common.entity.DbConnectionCreateRequest;
+import com.example.demo.demos.entity.BackupReqVO;
 import com.example.demo.demos.entity.DatabaseConnectionEntity;
 import com.example.demo.demos.service.DbConnectionService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,9 +33,13 @@ public class DataSourceController {
         dbConnectionService.preTest(request);
         return "success";
     }
-    @GetMapping("/backup/{id}")
-    public String backUp(@PathVariable("id") Long id){
-        dbConnectionService.backUp(id);
+    @PostMapping("/backup")
+    public String backUp(@RequestBody BackupReqVO reqVO){
+        dbConnectionService.backUp(reqVO);
         return "success";
+    }
+    @GetMapping("/getSchemas/{id}")
+    public List<String> getSchemas(@PathVariable("id") Long id){
+        return dbConnectionService.getSchemas(id);
     }
 }

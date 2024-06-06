@@ -4,6 +4,6 @@ import lombok.Data;
 
 @Data
 public class BackupReqVO {
-    private String dbName;
-    private String backupPath;
+    private Long id;
+    private String schema;
 }

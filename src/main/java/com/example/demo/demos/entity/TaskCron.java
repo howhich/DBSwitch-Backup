@@ -18,4 +18,5 @@ public class TaskCron {
     private Long datasourceId;
     @TableField(value = "last_execute_time", insertStrategy = FieldStrategy.DEFAULT, updateStrategy = FieldStrategy.DEFAULT)
     private Timestamp lastExecuteTime;
+    private String schemaName;
 }

@@ -18,8 +18,8 @@ public class TaskController {
         return taskService.getTasks();
     }
     @PostMapping("/add")
-    public String add(@RequestBody TaskCron taskCron) {
-        return taskService.addTask(taskCron);
+    public String add(@RequestBody TaskReq req) {
+        return taskService.addTask(req);
     }
     @GetMapping("/stop/{id}")
     public String stop(@PathVariable("id") Long id) {
@@ -30,8 +30,8 @@ public class TaskController {
         return taskService.startTask(id);
     }
     @PostMapping("/update")
-    public String update(@RequestBody TaskCron taskCron){
-        return taskService.updateTask(taskCron);
+    public String update(@RequestBody TaskReq req){
+        return taskService.updateTask(req);
     }
 
 }

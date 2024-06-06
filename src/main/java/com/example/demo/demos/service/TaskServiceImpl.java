@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.example.demo.demos.common.TaskStatus;
 import com.example.demo.demos.entity.TaskCron;
+import com.example.demo.demos.entity.TaskReq;
 import com.example.demo.demos.mapper.TaskMapper;
 import lombok.extern.slf4j.Slf4j;
 //import org.quartz.*;
@@ -12,7 +13,9 @@ import lombok.extern.slf4j.Slf4j;
 //import org.quartz.impl.StdSchedulerFactory;
 import org.quartz.*;
 import org.quartz.impl.StdSchedulerFactory;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Bean;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
@@ -71,27 +74,16 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, TaskCron> implement
 
     }
     @Override
-    public String addTask(TaskCron taskCron) {
+    public String addTask(TaskReq req) {
+
+        TaskCron taskCron = new TaskCron();
+        BeanUtils.copyProperties(req,taskCron);
         taskCron.setTaskStatus(TaskStatus.INIT.getStatus());
         int i = taskMapper.insert(taskCron);
-
-        String cron = taskCron.getCron();
+        String cron = req.getCron();
         try {
-
-            Trigger trigger = TriggerBuilder.newTrigger().withIdentity(taskCron.getTaskName(),"group1")
-                    .startNow()
-                    .withSchedule(CronScheduleBuilder.cronSchedule(cron))
-                    .build();
-
-            JobDetail job = JobBuilder.newJob(DbConnectionServiceImpl.class)
-                    .withIdentity(taskCron.getTaskName(),"group1")
-                    .usingJobData("datasourceId", taskCron.getDatasourceId())
-                    .build();
-
-            scheduler.scheduleJob(job, trigger);
-
-            log.info("task: {} has been init", taskCron.getTaskName());
-        } catch (SchedulerException e) {
+            log.info("task: {} has been init", req.getTaskName());
+        } catch (Exception e) {
             return e.toString();
         }
         return null;
@@ -124,9 +116,10 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, TaskCron> implement
                     .withSchedule(CronScheduleBuilder.cronSchedule(taskCron.getCron()))
                     .build();
 
-            JobDetail job = JobBuilder.newJob(HelloJob.class)
+            JobDetail job = JobBuilder.newJob(DbConnectionServiceImpl.class)
                     .withIdentity(taskCron.getTaskName() ,"group1")
                     .usingJobData("datasourceId", taskCron.getDatasourceId())
+                    .usingJobData("schema", taskCron.getSchemaName())
                     .build();
 
             if (taskCron.getTaskStatus().equals(TaskStatus.STOP.getStatus())){
@@ -154,8 +147,10 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, TaskCron> implement
     }
 
     @Override
-    public String updateTask(TaskCron taskCron) {
-        Long id = taskCron.getId();
+    public String updateTask(TaskReq req) {
+        Long id = req.getId();
+        TaskCron taskCron = new TaskCron();
+        BeanUtils.copyProperties(req,taskCron);
         try{
             TaskCron originalTask = taskMapper.
                     selectOne(new LambdaQueryWrapper<TaskCron>().eq(TaskCron::getId, id));
