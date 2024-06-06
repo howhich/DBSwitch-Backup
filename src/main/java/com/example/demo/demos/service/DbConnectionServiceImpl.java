@@ -26,10 +26,13 @@ import com.example.demo.demos.dbswitch.data.util.JsonUtils;
 import com.example.demo.demos.dbswitch.schema.TableDescription;
 import com.example.demo.demos.entity.BackupReqVO;
 import com.example.demo.demos.entity.DatabaseConnectionEntity;
+import com.example.demo.demos.entity.TaskCron;
 import com.example.demo.demos.handler.BackupHandler;
 import com.example.demo.demos.mapper.DbConnectionMapper;
+import com.example.demo.demos.mapper.TaskMapper;
 import com.example.demo.demos.response.ResultCode;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.quartz.Job;
 import org.quartz.JobDetail;
@@ -41,6 +44,7 @@ import org.springframework.stereotype.Service;
 import javax.annotation.Resource;
 import java.io.File;
 import java.sql.SQLException;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -147,6 +151,18 @@ public class DbConnectionServiceImpl extends ServiceImpl<DbConnectionMapper, Dat
                 entity.getDatabaseName(), entity.getType());
         List<String> schemas = backupHandler.getAllSchemas();
         return schemas;
+    }
+
+    @Override
+    public void clear() {
+        TaskMapper taskMapper = SpringUtil.getBean(TaskMapper.class);
+        List<TaskCron> taskCrons = taskMapper.selectList(new LambdaQueryWrapper<TaskCron>()
+                .lt(TaskCron::getLastExecuteTime, LocalDateTime.now().minusMonths(6)));
+        if (ObjectUtils.isNotEmpty(taskCrons)){
+            taskMapper.deleteBatchIds(taskCrons);
+        }
+
+
     }
 
 

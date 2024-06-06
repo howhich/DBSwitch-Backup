@@ -18,5 +18,7 @@ mybatis:
     aggressive-lazy-loading: false
     map-underscore-to-camel-case: true
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
-#mybatis-plus:
+mybatis-plus:
 #  mapper-locations: classpath*:mapper/**/*Mapper.xml
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl

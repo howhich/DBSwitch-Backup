@@ -21,4 +21,6 @@ public interface DbConnectionService extends IService<DatabaseConnectionEntity> 
     void backUp(BackupReqVO reqVO);
 
     List<String> getSchemas(Long id);
+
+    void clear();
 }

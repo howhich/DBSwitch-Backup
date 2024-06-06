@@ -42,4 +42,10 @@ public class DataSourceController {
     public List<String> getSchemas(@PathVariable("id") Long id){
         return dbConnectionService.getSchemas(id);
     }
+
+    @GetMapping("/clear")
+    public String clear() {
+        dbConnectionService.clear();
+        return "success";
+    }
 }
