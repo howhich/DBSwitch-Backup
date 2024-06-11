@@ -28,13 +28,18 @@ import com.example.demo.demos.service.MetadataService;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.util.StringUtils;
 
 import javax.annotation.PostConstruct;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.sql.*;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.regex.Pattern;
@@ -43,6 +48,8 @@ import java.util.stream.Collectors;
 @Slf4j
 @Data
 public class BackupHandler {
+
+
     private TableDataQueryProvider sourceQuerier;
     private RecordTransformProvider transformProvider;
     private TableDataWriteProvider targetWriter;
@@ -50,7 +57,7 @@ public class BackupHandler {
     private TableDataSynchronizeProvider targetSynchronizer;
 
     private final CloseableDataSource sourceDataSource;
-
+    private final String filepath;
     private final CloseableDataSource targetDataSource;
 
     private String sourceSchemaName;
@@ -76,7 +83,8 @@ public class BackupHandler {
 
     public BackupHandler(CloseableDataSource sourceDataSource,
                          String sourceSchemaName,
-                         ProductTypeEnum sourceProductType
+                         ProductTypeEnum sourceProductType,
+                         String filepath
                          ) {
 
         this.sourceDataSource = sourceDataSource;
@@ -84,12 +92,14 @@ public class BackupHandler {
         this.sourceSchemaName = sourceSchemaName;
         this.sourceProductType = sourceProductType;
         this.targetProductType = sourceProductType;
+        this.filepath = filepath;
     }
 
     public void backUp(){
         this.sourceMetaDataService = new DefaultMetadataService(sourceDataSource, sourceProductType);
 
         List<String> schemas = this.sourceMetaDataService.querySchemaList();
+        StringBuilder totalSql = new StringBuilder();
 
         List<TableDescription> tableDescriptions = sourceMetaDataService.queryTableList(this.sourceSchemaName);
         tableDescriptions.forEach(tableDescription -> {
@@ -119,7 +129,7 @@ public class BackupHandler {
             int hour = now.getHour();
             int minute = now.getMinute();
             int second = now.getSecond();
-            String  detailTableName = sourceTableName + "_" + hour + "_" + minute + "_" + second;
+            int dayOfYear = LocalDateTime.now().getDayOfYear();
             List<String> sqlCreateTable = sourceMetaDataService.getDDLCreateTableSQL(
                     targetMetaProvider,
                     targetColumnDescriptions.stream()
@@ -127,7 +137,7 @@ public class BackupHandler {
                             .collect(Collectors.toList()),
                     targetPrimaryKeys,
                     sourceSchemaName,
-                    detailTableName,
+                    sourceTableName,
                     sourceTableRemarks,
                     false,
 //                properties.getTarget().getCreateTableAutoIncrement(),
@@ -136,11 +146,12 @@ public class BackupHandler {
             JdbcTemplate targetJdbcTemplate = new JdbcTemplate(targetDataSource);
             for (String sql : sqlCreateTable) {
                 log.info("Execute SQL: \n{}", sql);
-                targetJdbcTemplate.execute(sql);
+                totalSql.append(sql).append(";\n");
+//                targetJdbcTemplate.execute(sql);
             }
             List<Map<String, Object>> maps = targetJdbcTemplate.queryForList("SELECT * FROM " + sourceTableName);
             StringBuilder InsertSQL = new StringBuilder();
-            InsertSQL.append("INSERT INTO " + detailTableName + "(" );
+            InsertSQL.append("INSERT INTO " + sourceTableName + "(" );
             for (int i = 0; i < targetColumnDescriptions.size(); i++){
                 InsertSQL.append(targetColumnDescriptions.get(i).getFieldName());
                 InsertSQL.append(i==targetColumnDescriptions.size()-1?") ":",");
@@ -153,7 +164,9 @@ public class BackupHandler {
                 int count = 0;
                 for (Map.Entry<String,Object> entry : stringObjectMap.entrySet()){
                     if (entry.getValue() instanceof String){
-                        InsertSQL.append("'" + entry.getValue() + "'" );
+//                        InsertSQL.append("'" + (entry.getValue()) + "'" );
+//                        String processedValue = ((String) entry.getValue()).replace("'","''");
+                        InsertSQL.append("'" + ((String)entry.getValue()).replace("'","''") + "'" );
                     }else {
                         InsertSQL.append(entry.getValue() );
                     }
@@ -168,10 +181,12 @@ public class BackupHandler {
                 InsertSQL.append(i==maps.size()-1?";":",");
             }
              log.info("Execute SQL: \n{}", InsertSQL);
-            targetJdbcTemplate.execute(InsertSQL.toString());
-
+//            targetJdbcTemplate.execute(InsertSQL.toString());
+            totalSql.append(InsertSQL);
 
         });
+        toFile(sourceSchemaName,totalSql.toString());
+
     }
     public List<String> getAllSchemas(){
         this.sourceMetaDataService = new DefaultMetadataService(sourceDataSource, sourceProductType);
@@ -215,5 +230,27 @@ public class BackupHandler {
         }
         return ret;
     }
+    private void toFile(String databaseName,String sql) {
+        DateTimeFormatter dateTimeFormatter =  DateTimeFormatter.ofPattern("yyyy_MM_dd_HH_mm_ss");
 
+        String filename =  filepath;
+        File file = new File(filename
+                +  databaseName + LocalDateTime.now()
+                .format(dateTimeFormatter)+".sql");
+        try {
+            if (file.createNewFile()) { // 使用createNewFile()方法创建新文件
+                System.out.println("文件创建成功！");
+                try (FileWriter writer = new FileWriter(file)) { // 使用FileWriter写入内容
+                    writer.write(sql);
+                    System.out.println("内容写入成功！");
+                } catch (IOException e) {
+                    System.out.println("写入时发生错误：" + e.getMessage());
+                }
+            } else {
+                System.out.println("文件已存在！");
+            }
+        } catch (IOException e) {
+            System.out.println("创建文件时发生错误：" + e.getMessage());
+        }
+    }
 }

@@ -22,3 +22,5 @@ mybatis-plus:
 #  mapper-locations: classpath*:mapper/**/*Mapper.xml
   configuration:
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+backup:
+  filepath: src/main/resources/static/

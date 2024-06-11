@@ -74,7 +74,9 @@ public final class GenerateSqlUtils {
     // if(ifNotExist && !type.isLikeOracle()) {
     // sb.append( Const.IF_NOT_EXISTS );
     // }
-    sb.append(provider.getQuotedSchemaTableCombination(schemaName, tableName));
+    sb.append(tableName);
+//    todo 修改了备份格式
+//    sb.append(provider.getQuotedSchemaTableCombination(schemaName, tableName));
     sb.append("(");
 
     // starrocks 当中，字段主键的情况下，必须将字段放在最前面，并且顺序一致。
@@ -172,6 +174,7 @@ public final class GenerateSqlUtils {
       sqlLists.add(createTableSql);
       if (HIVE_USE_CTAS) {
         String createAsTableSql = String.format("CREATE TABLE `%s`.`%s` STORED AS ORC AS (SELECT * FROM `%s`.`%s`)",
+//        String createAsTableSql = String.format("CREATE TABLE `%s`.`%s` STORED AS ORC AS (SELECT * FROM `%s`.`%s`)",
             schemaName, tableName, schemaName, tmpTableName);
         sqlLists.add(createAsTableSql);
       } else {

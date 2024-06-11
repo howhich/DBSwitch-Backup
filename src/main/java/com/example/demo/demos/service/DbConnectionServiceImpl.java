@@ -39,6 +39,7 @@ import org.quartz.JobDetail;
 import org.quartz.JobExecutionContext;
 import org.quartz.JobExecutionException;
 import org.springframework.beans.BeanUtils;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
@@ -62,6 +63,8 @@ public class DbConnectionServiceImpl extends ServiceImpl<DbConnectionMapper, Dat
     private DbConnectionMapper dbConnectionMapper;
     @Resource
     private DriverLoadService driverLoadService;
+    @Value("${backup.filepath}")
+    private static String filepath;
 
     @Override
     public String test(Long id) throws SQLException {
@@ -134,8 +137,9 @@ public class DbConnectionServiceImpl extends ServiceImpl<DbConnectionMapper, Dat
         String path = driverLoadService.getVersionDriverFile(entity.getType(), entity.getVersion()).getAbsolutePath();
         CloseableDataSource commonDataSource = DSUtils.createCommonDataSource(entity.getUrl()
                 , entity.getDriver(), path, entity.getUsername(), entity.getPassword());
+        String filepath = SpringUtil.getProperty("backup.filepath");
         BackupHandler backupHandler = new BackupHandler(commonDataSource,
-                 reqVO.getSchema(), entity.getType());
+                 reqVO.getSchema(), entity.getType(),filepath);
         backupHandler.backUp();
         log.info("已经执行完备份");
     }
@@ -148,7 +152,7 @@ public class DbConnectionServiceImpl extends ServiceImpl<DbConnectionMapper, Dat
         CloseableDataSource commonDataSource = DSUtils.createCommonDataSource(entity.getUrl()
                 , entity.getDriver(), path, entity.getUsername(), entity.getPassword());
         BackupHandler backupHandler = new BackupHandler(commonDataSource,
-                entity.getDatabaseName(), entity.getType());
+                entity.getDatabaseName(), entity.getType(),filepath);
         List<String> schemas = backupHandler.getAllSchemas();
         return schemas;
     }
@@ -161,8 +165,6 @@ public class DbConnectionServiceImpl extends ServiceImpl<DbConnectionMapper, Dat
         if (ObjectUtils.isNotEmpty(taskCrons)){
             taskMapper.deleteBatchIds(taskCrons);
         }
-
-
     }
 
 

@@ -58,9 +58,10 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, TaskCron> implement
                             .withSchedule(CronScheduleBuilder.cronSchedule(taskCron.getCron()))
                             .build();
 
-                    JobDetail job = JobBuilder.newJob(HelloJob.class)
+                    JobDetail job = JobBuilder.newJob(DbConnectionServiceImpl.class)
                            .withIdentity(taskCron.getTaskName() ,"group1")
                             .usingJobData("datasourceId", taskCron.getDatasourceId())
+                            .usingJobData("schema", taskCron.getSchemaName())
                             .build();
                     scheduler.scheduleJob(job, trigger);
                     scheduler.start();
